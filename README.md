@@ -1,18 +1,19 @@
 # DocFlow - Document Processing System
 
-A production-grade document upload and processing system built with FastAPI, featuring multi-layer validation, security checks, and RESTful API design.
+A document upload system I built out of curiosity, which turned into quite the learning journey with FastAPI.
 
-## 🚀 Features
+## Why I Built This
+Started this project out of curiosity about how secure file uploads work. What began as a simple experiment turned into a proper learning journey with FastAPI, database design, and API security. The hardest part was getting the API working properly, but I really enjoyed building the file validation logic.
 
-- **Multi-format Document Support**: PDF, Word, Excel, CSV files
-- **Advanced Security Validation**: MIME type verification and file extension matching
-- **Smart File Management**: User-isolated directory structure with conflict prevention
-- **Production-Ready API**: RESTful endpoints with automatic documentation
-- **Database Integrity**: Constraint-based validation and foreign key relationships
-- **Error Recovery**: Graceful failure handling with cleanup mechanisms
+## 🚀 What It Does
+- Handles file uploads with proper validation (PDF, Word, Excel, CSV)
+- Checks file sizes and types to prevent dodgy uploads  
+- Stores files safely in user-specific directories
+- Built a REST API that documents itself (FastAPI magic)
+- Database constraints to stop invalid data getting through
+- File validation logic I'm quite proud of - catches extension spoofing attempts
 
 ## 🛠️ Technical Architecture
-
 ### Backend Stack
 - **FastAPI**: Modern, fast web framework with automatic API documentation
 - **SQLAlchemy**: Database ORM with advanced relationship management
@@ -41,7 +42,6 @@ docflow/
 - Virtual environment
 
 ### Quick Start
-
 1. **Clone the repository**
    ```bash
    git clone https://github.com/yourusername/docflow.git
@@ -244,5 +244,3 @@ This project is available under the MIT Licence.
     Python Type Hints
 
 Built with modern Python and software engineering best practices
-
-Demonstrating production-ready API development, database design, and security implementation.

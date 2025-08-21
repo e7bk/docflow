@@ -7,10 +7,11 @@ from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from documents.models import Document
 
-# Your design decisions
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+# File upload limits and allowed types
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB - for personal reasons
 UPLOAD_BASE_DIR = "./uploads"
 
+# Only allow document files - learnt this prevents loads of security problems
 ALLOWED_MIME_TYPES = {
     "application/pdf": ".pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
@@ -27,28 +28,29 @@ class DocumentService:
     def upload_document(self, user_id: int, upload_file: UploadFile) -> Document:
         """Upload a document with your validation strategy"""
         
-        # Step 1: Check size first
+        # Check size first - quickest way to reject any massive files
         file_size = self._validate_file_size(upload_file)
         
-        # Step 2: Check file type
+        # Make sure file type is allowed and not spoofed
         self._validate_file_type(upload_file)
         
-        # Step 3: Generate unique filename
+        # Create unique username to avoid any conflicts
         unique_filename = self._generate_unique_filename(upload_file.filename)
         
-        # Step 4: Save file to user directory
+        # Save to users own folder
         file_path = self._save_file_to_storage(user_id, upload_file, unique_filename)
         
-        # Step 5: Create database record
+        # Create database record - (THIS TOOK ME AGES TO GET RIGHT)
         document = self._create_document_record(user_id, upload_file, unique_filename, file_path, file_size)
         
         return document
     
     def _validate_file_size(self, upload_file: UploadFile):
-        """Check size first - your strategy for fast failure"""
+        """Check file size before doing anything else - learned that this stops wasting processing time"""
+        # Get file size by seeking to end and checking position
         upload_file.file.seek(0, 2)
         file_size = upload_file.file.tell()
-        upload_file.file.seek(0)
+        upload_file.file.seek(0) # Reset position
         
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(
@@ -60,13 +62,14 @@ class DocumentService:
     
     def _validate_file_type(self, upload_file: UploadFile):
         """Validate both MIME type and file extension"""
+        # First check if MIME type is allowed
         if upload_file.content_type not in ALLOWED_MIME_TYPES:
             allowed_types = ", ".join(ALLOWED_MIME_TYPES.values())
             raise HTTPException(
                 status_code=400,
                 detail=f"File type not supported. Allowed types: {allowed_types}"
             )
-        
+        # Then check extension matches MIME TYPE (security bit)
         expected_extension = ALLOWED_MIME_TYPES[upload_file.content_type]
         actual_extension = os.path.splitext(upload_file.filename)[1].lower()
         
@@ -79,9 +82,11 @@ class DocumentService:
     def _sanitize_filename(self, filename: str) -> str:
         """Clean filename of dangerous characters"""
         import re
+        # Replace characters that are not allowed with underscores
         safe_filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-        safe_filename = safe_filename.replace('..', '_')
+        safe_filename = safe_filename.replace('..', '_') # To provent directory traversal
         
+        # Keep filename at a reasonable length to avoid conflicts
         if len(safe_filename) > 80:
             name, ext = os.path.splitext(safe_filename)
             safe_filename = name[:80-len(ext)] + ext
@@ -98,10 +103,12 @@ class DocumentService:
     
     def _save_file_to_storage(self, user_id: int, upload_file: UploadFile, unique_filename: str) -> str:
         """Save file to user directory"""
+        # Create user directory if it does not exist
         user_dir = Path(UPLOAD_BASE_DIR) / f"user_{user_id}"
         user_dir.mkdir(parents=True, exist_ok=True)
         file_path = user_dir / unique_filename
         
+        # Automatically save the file
         try:
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(upload_file.file, buffer)
@@ -121,12 +128,14 @@ class DocumentService:
             status="uploaded"
         )
         
+        # Save to database with error handling
         try:
             self.db.add(document)
             self.db.commit()
             self.db.refresh(document)
             return document
         except Exception as e:
+            # Clean up file if database fails
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise HTTPException(status_code=500, detail=f"Failed to create document record: {str(e)}")

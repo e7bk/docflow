@@ -5,7 +5,7 @@ from shared.database import get_db
 from documents.service import DocumentService
 from documents.models import Document
 
-# Create the router for document endpoints
+# API endpoints for document operations
 router = APIRouter()
 
 @router.post("/", status_code=201)
@@ -14,24 +14,23 @@ async def upload_document(
     db: Session = Depends(get_db)
 ):
     """
-    Upload a document - YOUR DESIGN IN ACTION!
+    Handle file uploads with validation
     
-    - Validates file size (10MB limit)
-    - Validates file type (PDF, Word, Excel, CSV)
-    - Validates MIME/extension match (security)
-    - Saves to user directory structure
+    - Checks file size and type
+    - Prevents dodgy file extensions
+    - Saves to user folders
     - Creates database record
     """
     
-    # For now, we'll use a test user (we'll add real auth later)
+    # Using test user for now - proper auth would go here
     test_user_id = 1
     
     try:
-        # Use your upload service!
+        # Let the service handle all the validation logic
         service = DocumentService(db)
         document = service.upload_document(test_user_id, file)
         
-        # Return success response (your API design)
+        # Return useful info about the uploaded file
         return {
             "document_id": document.id,
             "filename": document.filename,
@@ -39,14 +38,14 @@ async def upload_document(
             "mime_type": document.mime_type,
             "status": document.status,
             "uploaded_at": document.uploaded_at,
-            "message": "Upload successful! Your validation logic worked perfectly!"
+            "message": "Upload successful!"
         }
         
     except HTTPException as e:
-        # Your service already creates proper HTTP exceptions
+        # Service already creates proper error responses
         raise e
     except Exception as e:
-        # Catch any unexpected errors
+        # Catch anything unexpected
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.get("/", response_model=List[dict])
@@ -55,26 +54,25 @@ async def list_documents(
     db: Session = Depends(get_db)
 ):
     """
-    List documents with optional status filtering
+    Get list of documents, optionally filter by status
     
-    - GET /documents - All documents
-    - GET /documents?status=completed - Only completed
-    - GET /documents?status=uploaded - Only uploaded
+    Can filter like: /documents?status=completed
     """
     
-    # For now, use test user
+    # Still using test user
     test_user_id = 1
     
     try:
+        # Start with base query for this user
         query = db.query(Document).filter(Document.user_id == test_user_id)
         
-        # Apply status filter if provided
+        # Add status filter if requested
         if status:
             query = query.filter(Document.status == status)
         
         documents = query.all()
         
-        # Return document list
+        # Return clean list of document info
         return [
             {
                 "document_id": doc.id,
@@ -96,14 +94,12 @@ async def get_document(
     document_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Get specific document details
-    """
+    """Get details for a specific document"""
     
-    # For now, use test user
     test_user_id = 1
     
     try:
+        # Look for document belonging to this user
         document = db.query(Document).filter(
             Document.id == document_id,
             Document.user_id == test_user_id
@@ -112,6 +108,7 @@ async def get_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
+        # Return all the document details
         return {
             "document_id": document.id,
             "filename": document.filename,
@@ -133,14 +130,12 @@ async def delete_document(
     document_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Delete a document (removes both file and database record)
-    """
+    """Delete document and its file - cleans up properly"""
     
-    # For now, use test user
     test_user_id = 1
     
     try:
+        # Find the document
         document = db.query(Document).filter(
             Document.id == document_id,
             Document.user_id == test_user_id
@@ -149,12 +144,12 @@ async def delete_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Delete file from storage
+        # Remove actual file first
         import os
         if os.path.exists(document.file_path):
             os.remove(document.file_path)
         
-        # Delete database record
+        # Then remove database record
         db.delete(document)
         db.commit()
         
@@ -166,5 +161,6 @@ async def delete_document(
     except HTTPException:
         raise
     except Exception as e:
+        # Rollback database if something goes wrong
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
